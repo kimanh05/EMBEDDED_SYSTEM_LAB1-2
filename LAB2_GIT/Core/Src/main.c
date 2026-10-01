@@ -17,12 +17,13 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
+
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "LED_7seg.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,6 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -40,25 +42,23 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
 volatile uint32_t timer_ms = 0;
+uint32_t shift_start = 0;
 
-typedef enum {
-    RED,
-    GREEN,
-    YELLOW
-} TrafficState;
-
-TrafficState state = RED;
-uint32_t state_start = 0;
+/* 4 số ban đầu của bài 5 */
+uint8_t digits[4] = {1, 2, 3, 4};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_SPI1_Init(void);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -97,93 +97,52 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_TIM2_Init();
+  MX_SPI1_Init();
+
   /* USER CODE BEGIN 2 */
+
+  /* Khởi động TIM2 interrupt mỗi 1 ms */
   HAL_TIM_Base_Start_IT(&htim2);
+
+  /* Khởi tạo LED 7 đoạn */
+  LED7_init();
+  LED7_SetColon(0);
+
+  /* Hiển thị ban đầu: 1234 */
+  LED7_SetDigit(digits[0], 0, 0);
+  LED7_SetDigit(digits[1], 1, 0);
+  LED7_SetDigit(digits[2], 2, 0);
+  LED7_SetDigit(digits[3], 3, 0);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
-	  while (1)
-	  {
+    /* Mỗi 1 giây dịch 4 số sang phải một vị trí:
+       1234 -> 4123 -> 3412 -> 2341 -> 1234 */
+    if ((timer_ms - shift_start) >= 1000)
+    {
+      shift_start = timer_ms;
 
-	      switch (state)
-	      {
-	          case RED:
-	              HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-	                                DEBUG_LED_Pin,
-	                                GPIO_PIN_SET);
+      uint8_t temp = digits[3];
 
-	              HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
-	                                OUTPUT_Y0_Pin,
-	                                GPIO_PIN_RESET);
+      digits[3] = digits[2];
+      digits[2] = digits[1];
+      digits[1] = digits[0];
+      digits[0] = temp;
 
-	              HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
-	                                OUTPUT_Y1_Pin,
-	                                GPIO_PIN_RESET);
-
-	              if ((timer_ms - state_start) >= 5000)
-	              {
-	                  state = GREEN;
-	                  state_start = timer_ms;
-	              }
-	              break;
-
-
-	          case GREEN:
-	              HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-	                                DEBUG_LED_Pin,
-	                                GPIO_PIN_RESET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
-	                                OUTPUT_Y0_Pin,
-	                                GPIO_PIN_RESET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
-	                                OUTPUT_Y1_Pin,
-	                                GPIO_PIN_SET);
-
-	              if ((timer_ms - state_start) >= 3000)
-	              {
-	                  state = YELLOW;
-	                  state_start = timer_ms;
-	              }
-	              break;
-
-
-	          case YELLOW:
-	              HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-	                                DEBUG_LED_Pin,
-	                                GPIO_PIN_RESET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
-	                                OUTPUT_Y0_Pin,
-	                                GPIO_PIN_SET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
-	                                OUTPUT_Y1_Pin,
-	                                GPIO_PIN_RESET);
-
-	              if ((timer_ms - state_start) >= 1000)
-	              {
-	                  state = RED;
-	                  state_start = timer_ms;
-	              }
-	              break;
-	      }
-	  }
-
-
+      LED7_SetDigit(digits[0], 0, 0);
+      LED7_SetDigit(digits[1], 1, 0);
+      LED7_SetDigit(digits[2], 2, 0);
+      LED7_SetDigit(digits[3], 3, 0);
+    }
   }
-
-
   /* USER CODE END 3 */
 }
 
@@ -200,6 +159,7 @@ void SystemClock_Config(void)
   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -212,14 +172,19 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 168;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
+
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK |
+                                RCC_CLOCKTYPE_SYSCLK |
+                                RCC_CLOCKTYPE_PCLK1 |
+                                RCC_CLOCKTYPE_PCLK2;
+
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
@@ -232,13 +197,54 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+
+  /* SPI1 parameter configuration */
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+
+  /* APB2 = 84 MHz, prescaler 4 -> SPI baud rate = 21 Mbit/s */
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 10;
+
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+}
+
+/**
   * @brief TIM2 Initialization Function
   * @param None
   * @retval None
   */
 static void MX_TIM2_Init(void)
 {
-
   /* USER CODE BEGIN TIM2_Init 0 */
 
   /* USER CODE END TIM2_Init 0 */
@@ -249,31 +255,39 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 1 */
 
   /* USER CODE END TIM2_Init 1 */
+
+  /* TIM2 clock = 84 MHz
+     84 MHz / 840 / 100 = 1 kHz -> interrupt mỗi 1 ms */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 840-1;
+  htim2.Init.Prescaler = 840 - 1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 100-1;
+  htim2.Init.Period = 100 - 1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
   }
+
   sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+
   if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
   {
     Error_Handler();
   }
+
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
+
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
-
 }
 
 /**
@@ -290,39 +304,80 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, DEBUG_LED_Pin|OUTPUT_Y0_Pin|OUTPUT_Y1_Pin, GPIO_PIN_RESET);
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOE,
+                    DEBUG_LED_Pin | OUTPUT_Y0_Pin | OUTPUT_Y1_Pin,
+                    GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DEBUG_LED_Pin OUTPUT_Y0_Pin OUTPUT_Y1_Pin */
-  GPIO_InitStruct.Pin = DEBUG_LED_Pin|OUTPUT_Y0_Pin|OUTPUT_Y1_Pin;
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LD_LATCH_GPIO_Port,
+                    LD_LATCH_Pin,
+                    GPIO_PIN_RESET);
+
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(BTN_LOAD_GPIO_Port,
+                    BTN_LOAD_Pin,
+                    GPIO_PIN_RESET);
+
+  /* Configure GPIO pins : DEBUG_LED_Pin OUTPUT_Y0_Pin OUTPUT_Y1_Pin */
+  GPIO_InitStruct.Pin = DEBUG_LED_Pin |
+                        OUTPUT_Y0_Pin |
+                        OUTPUT_Y1_Pin;
+
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : INPUT_X0_Pin INPUT_X1_Pin */
-  GPIO_InitStruct.Pin = INPUT_X0_Pin|INPUT_X1_Pin;
+  /* Configure GPIO pins : INPUT_X0_Pin INPUT_X1_Pin */
+  GPIO_InitStruct.Pin = INPUT_X0_Pin | INPUT_X1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : INPUT_X2_Pin INPUT_X3_Pin */
-  GPIO_InitStruct.Pin = INPUT_X2_Pin|INPUT_X3_Pin;
+  /* Configure GPIO pins : INPUT_X2_Pin INPUT_X3_Pin */
+  GPIO_InitStruct.Pin = INPUT_X2_Pin | INPUT_X3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
+  /* Configure GPIO pin : LD_LATCH_Pin */
+  GPIO_InitStruct.Pin = LD_LATCH_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LD_LATCH_GPIO_Port, &GPIO_InitStruct);
+
+  /* Configure GPIO pin : BTN_LOAD_Pin */
+  GPIO_InitStruct.Pin = BTN_LOAD_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(BTN_LOAD_GPIO_Port, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 4 */
+
+/**
+  * @brief TIM2 interrupt callback
+  *        TIM2 chạy mỗi 1 ms.
+  *        LED7_Scan() quét 4 LED 7 đoạn.
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM2)
-    {
-        timer_ms++;
-    }
+  if (htim->Instance == TIM2)
+  {
+    timer_ms++;
+
+    /* Quét LED 7 đoạn mỗi 1 ms */
+    LED7_Scan();
+  }
 }
+
 /* USER CODE END 4 */
 
 /**
@@ -332,15 +387,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+
   while (1)
   {
   }
+
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
