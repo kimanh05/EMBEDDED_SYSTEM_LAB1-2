@@ -43,16 +43,13 @@
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
+
 volatile uint32_t timer_ms = 0;
 
-typedef enum {
-    RED,
-    GREEN,
-    YELLOW
-} TrafficState;
+uint32_t debug_start = 0;
+uint32_t y0_start = 0;
+uint32_t y1_start = 0;
 
-TrafficState state = RED;
-uint32_t state_start = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -98,7 +95,14 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+
   HAL_TIM_Base_Start_IT(&htim2);
+
+  HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port, DEBUG_LED_Pin, GPIO_PIN_RESET);
+
+  HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port, OUTPUT_Y0_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port, OUTPUT_Y1_Pin, GPIO_PIN_SET);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -111,75 +115,48 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	  while (1)
-	  {
-
-	      switch (state)
+	      if ((timer_ms - debug_start) >= 2000)
 	      {
-	          case RED:
-	              HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-	                                DEBUG_LED_Pin,
-	                                GPIO_PIN_SET);
+	          debug_start = timer_ms;
 
-	              HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
-	                                OUTPUT_Y0_Pin,
-	                                GPIO_PIN_RESET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
-	                                OUTPUT_Y1_Pin,
-	                                GPIO_PIN_RESET);
-
-	              if ((timer_ms - state_start) >= 5000)
-	              {
-	                  state = GREEN;
-	                  state_start = timer_ms;
-	              }
-	              break;
-
-
-	          case GREEN:
-	              HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-	                                DEBUG_LED_Pin,
-	                                GPIO_PIN_RESET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
-	                                OUTPUT_Y0_Pin,
-	                                GPIO_PIN_RESET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
-	                                OUTPUT_Y1_Pin,
-	                                GPIO_PIN_SET);
-
-	              if ((timer_ms - state_start) >= 3000)
-	              {
-	                  state = YELLOW;
-	                  state_start = timer_ms;
-	              }
-	              break;
-
-
-	          case YELLOW:
-	              HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-	                                DEBUG_LED_Pin,
-	                                GPIO_PIN_RESET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
-	                                OUTPUT_Y0_Pin,
-	                                GPIO_PIN_SET);
-
-	              HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
-	                                OUTPUT_Y1_Pin,
-	                                GPIO_PIN_RESET);
-
-	              if ((timer_ms - state_start) >= 1000)
-	              {
-	                  state = RED;
-	                  state_start = timer_ms;
-	              }
-	              break;
+	          HAL_GPIO_TogglePin(DEBUG_LED_GPIO_Port,
+	                             DEBUG_LED_Pin);
 	      }
-	  }
 
+	      if ((timer_ms - y0_start) < 2000)
+	      {
+	          HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
+	                            OUTPUT_Y0_Pin,
+	                            GPIO_PIN_SET);
+	      }
+	      else if ((timer_ms - y0_start) < 6000)
+	      {
+	          HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
+	                            OUTPUT_Y0_Pin,
+	                            GPIO_PIN_RESET);
+	      }
+	      else
+	      {
+	          y0_start = timer_ms;
+	      }
+
+
+	      if ((timer_ms - y1_start) < 5000)
+	      {
+	          HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
+	                            OUTPUT_Y1_Pin,
+	                            GPIO_PIN_SET);
+	      }
+	      else if ((timer_ms - y1_start) < 6000)
+	      {
+	          HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
+	                            OUTPUT_Y1_Pin,
+	                            GPIO_PIN_RESET);
+	      }
+	      else
+	      {
+	          y1_start = timer_ms;
+	      }
 
   }
 
@@ -316,6 +293,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM2)
@@ -323,6 +301,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         timer_ms++;
     }
 }
+
 /* USER CODE END 4 */
 
 /**
