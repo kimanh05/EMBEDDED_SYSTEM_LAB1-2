@@ -1,6 +1,6 @@
 # Embedded Systems - Lab 1 & Lab 2
 
-Repository lưu trữ mã nguồn và báo cáo **Lab 1 và Lab 2** của môn **Hệ thống Nhúng**.
+Repository lưu trữ mã nguồn **Lab 1 và Lab 2** của môn **Hệ thống Nhúng**.
 
 ## Thông tin
 
