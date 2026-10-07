@@ -1,7 +1,7 @@
 # Embedded Systems - Lab 1 & Lab 2
 
 Repository lưu trữ mã nguồn **Lab 1 và Lab 2** của môn **Hệ thống Nhúng**.
-
+ 
 ## Thông tin
 
 - Trường: Đại học Bách khoa - ĐHQG TP.HCM
