@@ -43,6 +43,8 @@
 
 /* USER CODE BEGIN PV */
 
+uint8_t counter = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -93,16 +95,35 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
+      /* Bật LED3 trong 2 giây */
+      if (counter < 2)
+      {
+          HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
+                            DEBUG_LED_Pin,
+                            GPIO_PIN_SET);
+      }
+      /* Tắt LED3 trong 4 giây */
+      else
+      {
+          HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
+                            DEBUG_LED_Pin,
+                            GPIO_PIN_RESET);
+      }
 
-    /* USER CODE BEGIN 3 */
+      /* Tăng biến đếm */
+      counter++;
 
-	  HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port, DEBUG_LED_Pin, GPIO_PIN_SET);
-	  HAL_Delay(2000);
+      /* Sau 6 giây, bắt đầu chu kỳ mới */
+      if (counter >= 6)
+      {
+          counter = 0;
+      }
 
-	  HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port, DEBUG_LED_Pin, GPIO_PIN_RESET);
-	  HAL_Delay(4000);
+      /* Chỉ sử dụng một lệnh delay ở cuối vòng lặp */
+      HAL_Delay(1000);
 
+      /* USER CODE END WHILE */
+      /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
