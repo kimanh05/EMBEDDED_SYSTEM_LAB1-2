@@ -7,7 +7,7 @@ Repository lưu trữ mã nguồn **Lab 1 và Lab 2** của môn **Hệ thống 
 - Trường: Đại học Bách khoa - ĐHQG TP.HCM
 - Khoa: Khoa học và Kỹ thuật Máy tính
 - Môn học: Hệ thống Nhúng
-- Lớp: TN01
+- Lớp: TN01 
 - Học kỳ: 261
 - GVHD: Trần Nguyễn Minh Duy
 - Nhóm: 08
