@@ -34,6 +34,9 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+/* Tần số quét đủ 4 LED: chọn 1, 25 hoặc 100 Hz */
+#define SCAN_FREQ_HZ  100U
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -46,11 +49,8 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-volatile uint32_t timer_ms = 0;
-uint32_t shift_start = 0;
-
-/* 4 số ban đầu của bài 5 */
-uint8_t digits[4] = {1, 2, 3, 4};
+/* TIM2 phát ngắt 1000 lần/s. Mỗi LED7_Scan() quét 1 trong 4 LED. */
+volatile uint32_t scan_accumulator = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -101,18 +101,16 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-  /* Khởi động TIM2 interrupt mỗi 1 ms */
-  HAL_TIM_Base_Start_IT(&htim2);
-
-  /* Khởi tạo LED 7 đoạn */
+  /* Giữ cố định 1234 để quan sát ảnh hưởng của tần số quét */
   LED7_init();
   LED7_SetColon(0);
+  LED7_SetDigit(1, 0, 0);
+  LED7_SetDigit(2, 1, 0);
+  LED7_SetDigit(3, 2, 0);
+  LED7_SetDigit(4, 3, 0);
 
-  /* Hiển thị ban đầu: 1234 */
-  LED7_SetDigit(digits[0], 0, 0);
-  LED7_SetDigit(digits[1], 1, 0);
-  LED7_SetDigit(digits[2], 2, 0);
-  LED7_SetDigit(digits[3], 3, 0);
+  /* Chỉ bắt đầu ngắt sau khi đã khởi tạo xong LED */
+  HAL_TIM_Base_Start_IT(&htim2);
 
   /* USER CODE END 2 */
 
@@ -123,25 +121,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-    /* Mỗi 1 giây dịch 4 số sang phải một vị trí:
-       1234 -> 4123 -> 3412 -> 2341 -> 1234 */
-    if ((timer_ms - shift_start) >= 1000)
-    {
-      shift_start = timer_ms;
-
-      uint8_t temp = digits[3];
-
-      digits[3] = digits[2];
-      digits[2] = digits[1];
-      digits[1] = digits[0];
-      digits[0] = temp;
-
-      LED7_SetDigit(digits[0], 0, 0);
-      LED7_SetDigit(digits[1], 1, 0);
-      LED7_SetDigit(digits[2], 2, 0);
-      LED7_SetDigit(digits[3], 3, 0);
-    }
+    /* Không thay đổi nội dung hiển thị; quét LED diễn ra trong TIM2 interrupt. */
   }
   /* USER CODE END 3 */
 }
@@ -362,19 +342,21 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-/**
-  * @brief TIM2 interrupt callback
-  *        TIM2 chạy mỗi 1 ms.
-  *        LED7_Scan() quét 4 LED 7 đoạn.
-  */
+/* TIM2 ngắt mỗi 1ms => 1000 lần/s.
+   LED7_Scan() quét một LED/lần, nên muốn tần số quét đủ 4 LED là
+   SCAN_FREQ_HZ thì phải gọi LED7_Scan() 4*SCAN_FREQ_HZ lần/s.
+   Bộ tích lũy tránh dùng HAL_Delay() và cho phép 100 Hz (2.5 ms/lần gọi). */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM2)
   {
-    timer_ms++;
+    scan_accumulator += 4U * SCAN_FREQ_HZ;
 
-    /* Quét LED 7 đoạn mỗi 1 ms */
-    LED7_Scan();
+    if (scan_accumulator >= 1000U)
+    {
+      scan_accumulator -= 1000U;
+      LED7_Scan();
+    }
   }
 }
 
