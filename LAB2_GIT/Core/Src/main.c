@@ -34,8 +34,9 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-/* Tần số quét đủ 4 LED: chọn 1, 25 hoặc 100 Hz */
-#define SCAN_FREQ_HZ  100U
+/* Đồng hồ khởi đầu từ 12:34 (có thể đổi hai giá trị này) */
+#define START_HOUR    12U
+#define START_MINUTE  34U
 
 /* USER CODE END PD */
 
@@ -49,8 +50,16 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-/* TIM2 phát ngắt 1000 lần/s. Mỗi LED7_Scan() quét 1 trong 4 LED. */
-volatile uint32_t scan_accumulator = 0;
+/* Bộ đếm thời gian ms tăng trong ngắt TIM2 (mỗi 1 ms). */
+volatile uint32_t timer_ms = 0U;
+
+/* Thời gian hiển thị HH:MM, được cập nhật ở vòng lặp chính. */
+uint8_t clock_hour = START_HOUR;
+uint8_t clock_minute = START_MINUTE;
+
+uint32_t minute_start = 0U;
+uint32_t colon_start = 0U;
+uint8_t colon_on = 1U;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -101,15 +110,15 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-  /* Giữ cố định 1234 để quan sát ảnh hưởng của tần số quét */
+  /* Hiển thị thời gian HH:MM ban đầu. */
   LED7_init();
-  LED7_SetColon(0);
-  LED7_SetDigit(1, 0, 0);
-  LED7_SetDigit(2, 1, 0);
-  LED7_SetDigit(3, 2, 0);
-  LED7_SetDigit(4, 3, 0);
+  LED7_SetDigit(clock_hour / 10U,   0, 0);
+  LED7_SetDigit(clock_hour % 10U,   1, 0);
+  LED7_SetDigit(clock_minute / 10U, 2, 0);
+  LED7_SetDigit(clock_minute % 10U, 3, 0);
+  LED7_SetColon(colon_on);
 
-  /* Chỉ bắt đầu ngắt sau khi đã khởi tạo xong LED */
+  /* Khởi động TIM2: ngắt 1 ms; quét LED trong ngắt. */
   HAL_TIM_Base_Start_IT(&htim2);
 
   /* USER CODE END 2 */
@@ -121,7 +130,34 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* Không thay đổi nội dung hiển thị; quét LED diễn ra trong TIM2 interrupt. */
+    /* Lấy thời điểm hiện tại do TIM2 đếm, không dùng HAL_Delay(). */
+    uint32_t now = timer_ms;
+
+    /* Mỗi 60 giây tăng 1 phút; sau 59 phút thì tăng giờ. */
+    if ((uint32_t)(now - minute_start) >= 60000U)
+    {
+      minute_start += 60000U;
+
+      clock_minute++;
+      if (clock_minute >= 60U)
+      {
+        clock_minute = 0U;
+        clock_hour = (uint8_t)((clock_hour + 1U) % 24U);
+      }
+
+      LED7_SetDigit(clock_hour / 10U,   0, 0);
+      LED7_SetDigit(clock_hour % 10U,   1, 0);
+      LED7_SetDigit(clock_minute / 10U, 2, 0);
+      LED7_SetDigit(clock_minute % 10U, 3, 0);
+    }
+
+    /* Dấu hai chấm chớp 2 Hz: 250 ms sáng, 250 ms tắt. */
+    if ((uint32_t)(now - colon_start) >= 250U)
+    {
+      colon_start += 250U;
+      colon_on ^= 1U;
+      LED7_SetColon(colon_on);
+    }
   }
   /* USER CODE END 3 */
 }
@@ -342,21 +378,14 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-/* TIM2 ngắt mỗi 1ms => 1000 lần/s.
-   LED7_Scan() quét một LED/lần, nên muốn tần số quét đủ 4 LED là
-   SCAN_FREQ_HZ thì phải gọi LED7_Scan() 4*SCAN_FREQ_HZ lần/s.
-   Bộ tích lũy tránh dùng HAL_Delay() và cho phép 100 Hz (2.5 ms/lần gọi). */
+/* TIM2 ngắt mỗi 1 ms. Hàm LED7_Scan() quét 1 LED mỗi lần,
+   chu kỳ quét đủ 4 LED đạt 250 Hz. */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM2)
   {
-    scan_accumulator += 4U * SCAN_FREQ_HZ;
-
-    if (scan_accumulator >= 1000U)
-    {
-      scan_accumulator -= 1000U;
-      LED7_Scan();
-    }
+    timer_ms++;
+    LED7_Scan();
   }
 }
 
