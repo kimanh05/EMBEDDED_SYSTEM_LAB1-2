@@ -95,31 +95,52 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      /* Bật LED3 trong 2 giây */
-      if (counter < 2)
+      /* Đèn đỏ: sáng 5 giây */
+      if (counter < 5)
       {
           HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-                            DEBUG_LED_Pin,
-                            GPIO_PIN_SET);
+                            DEBUG_LED_Pin, GPIO_PIN_SET);
+
+          HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
+                            OUTPUT_Y0_Pin, GPIO_PIN_RESET);
+
+          HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
+                            OUTPUT_Y1_Pin, GPIO_PIN_RESET);
       }
-      /* Tắt LED3 trong 4 giây */
+
+      /* Đèn xanh: sáng 3 giây */
+      else if (counter < 8)
+      {
+          HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
+                            DEBUG_LED_Pin, GPIO_PIN_RESET);
+
+          HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
+                            OUTPUT_Y0_Pin, GPIO_PIN_SET);
+
+          HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
+                            OUTPUT_Y1_Pin, GPIO_PIN_RESET);
+      }
+
+      /* Đèn vàng: sáng 1 giây */
       else
       {
           HAL_GPIO_WritePin(DEBUG_LED_GPIO_Port,
-                            DEBUG_LED_Pin,
-                            GPIO_PIN_RESET);
+                            DEBUG_LED_Pin, GPIO_PIN_RESET);
+
+          HAL_GPIO_WritePin(OUTPUT_Y0_GPIO_Port,
+                            OUTPUT_Y0_Pin, GPIO_PIN_RESET);
+
+          HAL_GPIO_WritePin(OUTPUT_Y1_GPIO_Port,
+                            OUTPUT_Y1_Pin, GPIO_PIN_SET);
       }
 
-      /* Tăng biến đếm */
       counter++;
 
-      /* Sau 6 giây, bắt đầu chu kỳ mới */
-      if (counter >= 6)
+      if (counter >= 9)
       {
           counter = 0;
       }
 
-      /* Chỉ sử dụng một lệnh delay ở cuối vòng lặp */
       HAL_Delay(1000);
 
       /* USER CODE END WHILE */
